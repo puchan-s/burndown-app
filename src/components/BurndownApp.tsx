@@ -99,6 +99,14 @@ export default function BurndownApp() {
     );
   };
 
+  /**
+ * タスク削除処理
+ * @param {number} taskId - 削除するタスクのID
+ */
+  const deleteTask = (taskId: number) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* ヘッダー */}
@@ -123,7 +131,7 @@ export default function BurndownApp() {
           />
           <input
             type="number"
-            placeholder="Estimate"  
+            placeholder="Estimate"
             value={newEstimate}
             min={1}
             onChange={(e) => setNewEstimate(Number(e.target.value))}
@@ -148,6 +156,7 @@ export default function BurndownApp() {
                 <span className="font-medium">{t.name}</span>
                 <span className="text-gray-500">({t.estimate}h)</span>
               </div>
+
               <div className="flex items-center space-x-2">
                 <label className="text-gray-600">完了日:</label>
                 <select
@@ -167,10 +176,19 @@ export default function BurndownApp() {
                     </option>
                   ))}
                 </select>
+
+                {/* 🗑️ 削除ボタン */}
+                <button
+                  onClick={() => deleteTask(t.id)}
+                  className="text-red-500 hover:text-red-700 ml-2"
+                >
+                  ✕
+                </button>
               </div>
             </li>
           ))}
         </ul>
+
       </div>
     </div>
   );
