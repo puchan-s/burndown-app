@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import BurndownChart, { ChartPoint } from "./BurndownChart";
 
 /**
@@ -59,10 +59,7 @@ export default function BurndownApp() {
   const sprintDays = 14;
 
   /** タスク一覧の状態 */
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: 1, name: "要件整理", estimate: 5, completedOnDay: 1 },
-    { id: 2, name: "画面設計", estimate: 8, completedOnDay: 2 },
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   /** 新規タスク名の状態 */
   const [newName, setNewName] = useState("");
@@ -71,6 +68,25 @@ export default function BurndownApp() {
 
   /** チャート用データ（tasksが変化したら再計算） */
   const chartData = useMemo(() => buildBurndownData(sprintDays, tasks), [tasks]);
+
+  /**
+   * コンポーネントの初回マウント時にローカルストレージからタスク一覧を取得し、状態にセットする副作用
+   * - ページをリロードしても前回保存したタスク一覧を復元できる
+   */
+  useEffect(() => {
+    const saved = localStorage.getItem("tasks");
+    if (saved) {
+      setTasks(JSON.parse(saved));
+    }
+  }, []);
+
+  /**
+   * タスク一覧（tasks）が変更されるたびにローカルストレージへ保存する副作用
+   * - ユーザーがタスクを追加・編集・削除した際に、最新の状態を永続化する
+   */
+  useEffect(() => {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+  }, [tasks]);
 
   /**
    * タスク追加処理
@@ -105,6 +121,24 @@ export default function BurndownApp() {
  */
   const deleteTask = (taskId: number) => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
+  };
+
+
+  /**
+   * タスク一覧をローカルストレージに保存するユーティリティ関数
+   * @param {Task[]} tasks - 保存するタスク配列
+   */
+  const saveTasks = (tasks:Task[]) => {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+  };
+
+  /**
+   * ローカルストレージからタスク一覧を取得するユーティリティ関数
+   * @returns {Task[]} 保存されているタスク配列。なければ空配列を返す
+   */
+  const loadTasks = () => {
+    const saved = localStorage.getItem("tasks");
+    return saved ? JSON.parse(saved) : [];
   };
 
   return (
