@@ -12,9 +12,10 @@ import {
 } from "recharts";
 
 export type ChartPoint = {
-  day: string;         // 表示ラベル (例: "Day 1")
+  day: string;         // 表示ラベル (例: "2025-09-17")
   ideal: number;       // 理想の残工数（理論線）
   actual: number;      // 実際の残工数
+  due?: number;        // 完了予定ベースの残工数
 };
 
 export default function BurndownChart({ data }: { data: ChartPoint[] }) {
@@ -35,6 +36,7 @@ export default function BurndownChart({ data }: { data: ChartPoint[] }) {
             stroke="#8884d8"
             strokeWidth={2}
             dot={false}
+            name="理想"
           />
           {/* 実績線 */}
           <Line
@@ -43,6 +45,16 @@ export default function BurndownChart({ data }: { data: ChartPoint[] }) {
             stroke="#82ca9d"
             strokeWidth={2}
             dot={{ r: 3 }}
+            name="実績"
+          />
+          {/* 完了予定線 */}
+          <Line
+            type="monotone"
+            dataKey="due"
+            stroke="#ff9800"
+            strokeWidth={2}
+            dot={false}
+            name="完了予定"
           />
         </LineChart>
       </ResponsiveContainer>
