@@ -153,11 +153,10 @@ export default function BurndownApp() {
   }, [tasks]);
 
   /**
-   * タスク追加処理
+   * タスク追加処理（親タスクを無制限階層化対応）
    */
   const addTask = () => {
     if (!newName) return;
-    // 完了日をインデックス化（未選択ならnull）
     const completedIdx = sprintDates.indexOf(newCompletedDate);
     const dueIdx = sprintDates.indexOf(newDueDate);
     const newTask: Task = {
@@ -170,15 +169,22 @@ export default function BurndownApp() {
       dueOnDay: dueIdx >= 0 ? dueIdx + 1 : null,
     };
 
+    // 再帰的に親タスクを探してchildrenに追加
+    const addChild = (tasks: Task[]): Task[] => {
+      return tasks.map(t => {
+        if (t.id === newParentId) {
+          return { ...t, children: [...(t.children ?? []), newTask] };
+        }
+        if (t.children && t.children.length > 0) {
+          return { ...t, children: addChild(t.children) };
+        }
+        return t;
+      });
+    };
+
     if (newParentId) {
-      // 親タスクの children に追加
-      setTasks(prev =>
-        prev.map(t =>
-          t.id === newParentId ? { ...t, children: [...(t.children ?? []), newTask] } : t
-        )
-      );
+      setTasks(prev => addChild(prev));
     } else {
-      // 親タスクとして追加
       setTasks(prev => [...prev, newTask]);
     }
 
@@ -289,6 +295,104 @@ export default function BurndownApp() {
 
   const todayTasks = getTodayTasks(tasks);
 
+  /**
+   * 階層ごとにインデントをつけてタスクを表示し、最下層のみ詳細項目を表示
+   */
+  const renderTasks = (tasks: Task[], level: number = 0): JSX.Element[] =>
+    tasks.map((t) => {
+      const isLeaf = !t.children || t.children.length === 0;
+      return (
+        <React.Fragment key={t.id}>
+          <li
+            className="flex justify-between items-center"
+            style={{ paddingLeft: `${level * 24}px` }}
+          >
+            <div className="flex items-center space-x-2">
+              <span className={level === 0 ? "font-bold text-blue-700" : "font-medium"}>{t.name}</span>
+              {/* 最下層のみ見積もり時間を表示 */}
+              {isLeaf && <span className="text-gray-500">({t.estimate}h)</span>}
+            </div>
+            {/* 最下層のみ完了日・完了予定日・削除ボタンを表示 */}
+            {isLeaf && (
+              <div className="flex items-center space-x-2">
+                <label className="text-gray-600">完了日:</label>
+                <select
+                  value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
+                  onChange={(e) => {
+                    const idx = sprintDates.indexOf(e.target.value);
+                    updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
+                  }}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">未完了</option>
+                  {sprintDates.map((date) => (
+                    <option key={date} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+                <label className="text-gray-600">完了予定日:</label>
+                <select
+                  value={t.dueOnDay !== undefined && t.dueOnDay !== null ? sprintDates[t.dueOnDay - 1] : ""}
+                  onChange={(e) => {
+                    const idx = sprintDates.indexOf(e.target.value);
+                    updateDueDay(t.id, idx >= 0 ? idx + 1 : null);
+                  }}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="">未設定</option>
+                  {sprintDates.map((date) => (
+                    <option key={date} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => deleteTask(t.id)}
+                  className="text-red-500 hover:underline ml-2"
+                >
+                  削除
+                </button>
+              </div>
+            )}
+          </li>
+          {t.children && t.children.length > 0 && renderTasks(t.children, level + 1)}
+        </React.Fragment>
+      );
+    });
+
+  /**
+   * 指定タスクの親階層名をすべて取得して " > " で連結するユーティリティ
+   */
+  const getParentNames = (task: Task, allTasks: Task[]): string => {
+    const names: string[] = [];
+    let currentParentId = task.parentId;
+    while (currentParentId !== null && currentParentId !== undefined) {
+      const parent = findTaskById(allTasks, currentParentId);
+      if (parent) {
+        names.unshift(parent.name);
+        currentParentId = parent.parentId;
+      } else {
+        break;
+      }
+    }
+    return names.length > 0 ? `[${names.join("] > [")}]` : "";
+  };
+
+  /**
+   * タスクIDから再帰的にタスクを検索
+   */
+  const findTaskById = (tasks: Task[], id: number): Task | undefined => {
+    for (const t of tasks) {
+      if (t.id === id) return t;
+      if (t.children) {
+        const found = findTaskById(t.children, id);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
   return (
     <div className="max-w-[1600px] mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -298,49 +402,53 @@ export default function BurndownApp() {
 
       <div className="flex">
         {/* 左側：今日のタスク */}
-        <div className="flex-1">
-          <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
-            <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr}）</h3>
-            {todayTasks.length === 0 ? (
-              <div className="text-gray-500">本日のタスクはありません。</div>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {todayTasks.map(t => (
-                  <li key={t.id} className="flex flex-col">
-                    {/* 親タスク名（親の場合のみ表示） */}
-                    {t.parentId === null || t.parentId === undefined ? (
-                      <span className="font-bold text-blue-700">{t.name}</span>
-                    ) : null}
-                    {/* 子タスクの場合は親タスク名も表示 */}
-                    {t.parentId !== null && t.parentId !== undefined ? (
-                      <span className="text-xs text-gray-500">
-                        親: {tasks.find(p => p.id === t.parentId)?.name}
-                      </span>
-                    ) : null}
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{t.name}</span>
-                      <span className="text-gray-500">({t.estimate}h)</span>
-                      <label className="text-gray-600 text-xs">完了日:</label>
-                      <select
-                        value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
-                        onChange={(e) => {
-                          const idx = sprintDates.indexOf(e.target.value);
-                          updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
-                        }}
-                        className="border rounded px-2 py-1 text-xs"
-                      >
-                        <option value="">未完了</option>
-                        {sprintDates.map((date) => (
-                          <option key={date} value={date}>
-                            {date}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+        {/* --- 今日のタスクリスト表示（右側に固定、親階層すべて表示） --- */}
+        <div className="flex">
+          <div className="flex-1">
+            {/* ...既存のチャートやタスク一覧... */}
+          </div>
+          <div className="w-80 ml-6">
+            <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
+              <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr}）</h3>
+              {todayTasks.length === 0 ? (
+                <div className="text-gray-500">本日のタスクはありません。</div>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {todayTasks.map(t => (
+                    <li key={t.id} className="flex flex-col">
+                      {/* 階層すべての親タスク名を表示 */}
+                      {t.parentId !== null && t.parentId !== undefined && (
+                        <span className="text-xs text-gray-500 mb-1">
+                          {getParentNames(t, tasks)}
+                        </span>
+                      )}
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">{t.name}</span>
+                        <span className="text-gray-500">({t.estimate}h)</span>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <label className="text-gray-600 text-xs">完了日:</label>
+                          <select
+                            value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
+                            onChange={(e) => {
+                              const idx = sprintDates.indexOf(e.target.value);
+                              updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
+                            }}
+                            className="border rounded px-2 py-1 text-xs"
+                          >
+                            <option value="">未完了</option>
+                            {sprintDates.map((date) => (
+                              <option key={date} value={date}>
+                                {date}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
         {/* 右側：既存のタスク一覧やチャート */}
@@ -382,9 +490,16 @@ export default function BurndownApp() {
                   className="border rounded px-2 py-1 w-32"
                 >
                   <option value="">親タスクなし</option>
-                  {tasks.filter(t => !t.parentId).map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                  {/* 階層を再帰的に表示 */}
+                  {(() => {
+                    // 階層を表すprefixを付けてoptionを再帰的に生成
+                    const renderOptions = (tasks: Task[], prefix: string = ""): JSX.Element[] =>
+                      tasks.flatMap(t => [
+                        <option key={t.id} value={t.id}>{prefix + t.name}</option>,
+                        ...(t.children ? renderOptions(t.children, prefix + "　") : [])
+                      ]);
+                    return renderOptions(tasks);
+                  })()}
                 </select>
               </div>
               <div className="flex flex-col">
@@ -431,105 +546,7 @@ export default function BurndownApp() {
             <h3 className="font-medium mb-2">Tasks</h3>
             <ul className="space-y-2 text-sm">
               {/* 親タスクも表示し、子タスクはインデントして表示 */}
-              {tasks.map((parent) => (
-                <React.Fragment key={parent.id}>
-                  <li className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{parent.name}</span>
-                      <span className="text-gray-500">({parent.estimate}h)</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <label className="text-gray-600">完了日:</label>
-                      <select
-                        value={parent.completedOnDay !== undefined && parent.completedOnDay !== null ? sprintDates[parent.completedOnDay - 1] : ""}
-                        onChange={(e) => {
-                          const idx = sprintDates.indexOf(e.target.value);
-                          updateCompletedDay(parent.id, idx >= 0 ? idx + 1 : null);
-                        }}
-                        className="border rounded px-2 py-1"
-                      >
-                        <option value="">未完了</option>
-                        {sprintDates.map((date) => (
-                          <option key={date} value={date}>
-                            {date}
-                          </option>
-                        ))}
-                      </select>
-                      <label className="text-gray-600">完了予定日:</label>
-                      <select
-                        value={parent.dueOnDay !== undefined && parent.dueOnDay !== null ? sprintDates[parent.dueOnDay - 1] : ""}
-                        onChange={(e) => {
-                          const idx = sprintDates.indexOf(e.target.value);
-                          updateDueDay(parent.id, idx >= 0 ? idx + 1 : null);
-                        }}
-                        className="border rounded px-2 py-1"
-                      >
-                        <option value="">未設定</option>
-                        {sprintDates.map((date) => (
-                          <option key={date} value={date}>
-                            {date}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => deleteTask(parent.id)}
-                        className="text-red-500 hover:underline ml-2"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </li>
-                  {/* 子タスクをインデントして表示 */}
-                  {parent.children && parent.children.map((t) => (
-                    <li key={t.id} className="flex justify-between items-center pl-6">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">{t.name}</span>
-                        <span className="text-gray-500">({t.estimate}h)</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <label className="text-gray-600">完了日:</label>
-                        <select
-                          value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
-                          onChange={(e) => {
-                            const idx = sprintDates.indexOf(e.target.value);
-                            updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
-                          }}
-                          className="border rounded px-2 py-1"
-                        >
-                          <option value="">未完了</option>
-                          {sprintDates.map((date) => (
-                            <option key={date} value={date}>
-                              {date}
-                            </option>
-                          ))}
-                        </select>
-                        <label className="text-gray-600">完了予定日:</label>
-                        <select
-                          value={t.dueOnDay !== undefined && t.dueOnDay !== null ? sprintDates[t.dueOnDay - 1] : ""}
-                          onChange={(e) => {
-                            const idx = sprintDates.indexOf(e.target.value);
-                            updateDueDay(t.id, idx >= 0 ? idx + 1 : null);
-                          }}
-                          className="border rounded px-2 py-1"
-                        >
-                          <option value="">未設定</option>
-                          {sprintDates.map((date) => (
-                            <option key={date} value={date}>
-                              {date}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => deleteTask(t.id)}
-                          className="text-red-500 hover:underline ml-2"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </React.Fragment>
-              ))}
+              {renderTasks(tasks)}
             </ul>
           </div>
         </div>
