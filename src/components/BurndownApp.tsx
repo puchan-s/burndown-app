@@ -263,199 +263,276 @@ export default function BurndownApp() {
     return saved ? JSON.parse(saved) : [];
   };
 
+  /**
+   * 今日の日付（YYYY-MM-DD形式）を取得
+   */
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  /**
+   * 今日のタスク（完了予定日が今日のもの）を抽出
+   * 親・子タスク両方を対象
+   */
+  const getTodayTasks = (tasks: Task[]): Task[] => {
+    const result: Task[] = [];
+    for (const t of tasks) {
+      // 親タスク自身が今日のタスク
+      if (t.dueOnDay !== undefined && t.dueOnDay !== null && sprintDates[t.dueOnDay - 1] === todayStr) {
+        result.push(t);
+      }
+      // 子タスクもチェック
+      if (t.children && t.children.length > 0) {
+        result.push(...getTodayTasks(t.children));
+      }
+    }
+    return result;
+  };
+
+  const todayTasks = getTodayTasks(tasks);
+
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* ヘッダー: タイトルとスプリント日数表示 */}
+    <div className="max-w-[1600px] mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Sample Burndown App</h1>
         <div className="text-sm text-gray-600">Sprint: {sprintDays} days</div>
       </div>
 
-      {/* バーンダウンチャート表示 */}
-      <BurndownChart data={chartData} />
-
-      {/* タスク追加フォーム */}
-      <div className="bg-white rounded-lg p-4 shadow space-y-2">
-        <h3 className="font-medium">Add Task</h3>
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-600 mb-1">タスク名</label>
-            <input
-              type="text"
-              placeholder="Task name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="border rounded px-2 py-1 w-40"
-            />
+      <div className="flex">
+        {/* 左側：今日のタスク */}
+        <div className="flex-1">
+          <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
+            <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr}）</h3>
+            {todayTasks.length === 0 ? (
+              <div className="text-gray-500">本日のタスクはありません。</div>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {todayTasks.map(t => (
+                  <li key={t.id} className="flex flex-col">
+                    {/* 親タスク名（親の場合のみ表示） */}
+                    {t.parentId === null || t.parentId === undefined ? (
+                      <span className="font-bold text-blue-700">{t.name}</span>
+                    ) : null}
+                    {/* 子タスクの場合は親タスク名も表示 */}
+                    {t.parentId !== null && t.parentId !== undefined ? (
+                      <span className="text-xs text-gray-500">
+                        親: {tasks.find(p => p.id === t.parentId)?.name}
+                      </span>
+                    ) : null}
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{t.name}</span>
+                      <span className="text-gray-500">({t.estimate}h)</span>
+                      <label className="text-gray-600 text-xs">完了日:</label>
+                      <select
+                        value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
+                        onChange={(e) => {
+                          const idx = sprintDates.indexOf(e.target.value);
+                          updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
+                        }}
+                        className="border rounded px-2 py-1 text-xs"
+                      >
+                        <option value="">未完了</option>
+                        {sprintDates.map((date) => (
+                          <option key={date} value={date}>
+                            {date}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-600 mb-1">見積もり時間</label>
-            <input
-              type="number"
-              placeholder="Estimate"
-              value={newEstimate}
-              min={1}
-              onChange={(e) => setNewEstimate(Number(e.target.value))}
-              className="border rounded px-2 py-1 w-24"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-600 mb-1">親タスク</label>
-            <select
-              value={newParentId ?? ""}
-              onChange={(e) => setNewParentId(e.target.value ? Number(e.target.value) : null)}
-              className="border rounded px-2 py-1 w-32"
-            >
-              <option value="">親タスクなし</option>
-              {tasks.filter(t => !t.parentId).map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-600 mb-1">完了日</label>
-            <select
-              value={newCompletedDate}
-              onChange={e => setNewCompletedDate(e.target.value)}
-              className="border rounded px-2 py-1 w-32"
-            >
-              <option value="">未完了</option>
-              {sprintDates.map(date => (
-                <option key={date} value={date}>
-                  {date}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-600 mb-1">完了予定日</label>
-            <select
-              value={newDueDate}
-              onChange={e => setNewDueDate(e.target.value)}
-              className="border rounded px-2 py-1 w-32"
-            >
-              <option value="">未設定</option>
-              {sprintDates.map(date => (
-                <option key={date} value={date}>
-                  {date}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            onClick={addTask}
-            className="bg-blue-500 text-white px-4 py-2 rounded h-10 self-end"
-          >
-            Add
-          </button>
         </div>
-      </div>
+        {/* 右側：既存のタスク一覧やチャート */}
+        <div className="flex-1">
+          {/* ヘッダー: タイトルとスプリント日数表示 */}
+          {/* バーンダウンチャート表示 */}
+          <BurndownChart data={chartData} />
 
-      {/* タスク一覧表示（親子構造・完了日編集・削除） */}
-      <div className="bg-white rounded-lg p-4 shadow">
-        <h3 className="font-medium mb-2">Tasks</h3>
-        <ul className="space-y-2 text-sm">
-          {/* 親タスクも表示し、子タスクはインデントして表示 */}
-          {tasks.map((parent) => (
-            <React.Fragment key={parent.id}>
-              <li className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{parent.name}</span>
-                  <span className="text-gray-500">({parent.estimate}h)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <label className="text-gray-600">完了日:</label>
-                  <select
-                    value={parent.completedOnDay !== undefined && parent.completedOnDay !== null ? sprintDates[parent.completedOnDay - 1] : ""}
-                    onChange={(e) => {
-                      const idx = sprintDates.indexOf(e.target.value);
-                      updateCompletedDay(parent.id, idx >= 0 ? idx + 1 : null);
-                    }}
-                    className="border rounded px-2 py-1"
-                  >
-                    <option value="">未完了</option>
-                    {sprintDates.map((date) => (
-                      <option key={date} value={date}>
-                        {date}
-                      </option>
-                    ))}
-                  </select>
-                  <label className="text-gray-600">完了予定日:</label>
-                  <select
-                    value={parent.dueOnDay !== undefined && parent.dueOnDay !== null ? sprintDates[parent.dueOnDay - 1] : ""}
-                    onChange={(e) => {
-                      const idx = sprintDates.indexOf(e.target.value);
-                      updateDueDay(parent.id, idx >= 0 ? idx + 1 : null);
-                    }}
-                    className="border rounded px-2 py-1"
-                  >
-                    <option value="">未設定</option>
-                    {sprintDates.map((date) => (
-                      <option key={date} value={date}>
-                        {date}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => deleteTask(parent.id)}
-                    className="text-red-500 hover:underline ml-2"
-                  >
-                    削除
-                  </button>
-                </div>
-              </li>
-              {/* 子タスクをインデントして表示 */}
-              {parent.children && parent.children.map((t) => (
-                <li key={t.id} className="flex justify-between items-center pl-6">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">{t.name}</span>
-                    <span className="text-gray-500">({t.estimate}h)</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <label className="text-gray-600">完了日:</label>
-                    <select
-                      value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
-                      onChange={(e) => {
-                        const idx = sprintDates.indexOf(e.target.value);
-                        updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
-                      }}
-                      className="border rounded px-2 py-1"
-                    >
-                      <option value="">未完了</option>
-                      {sprintDates.map((date) => (
-                        <option key={date} value={date}>
-                          {date}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="text-gray-600">完了予定日:</label>
-                    <select
-                      value={t.dueOnDay !== undefined && t.dueOnDay !== null ? sprintDates[t.dueOnDay - 1] : ""}
-                      onChange={(e) => {
-                        const idx = sprintDates.indexOf(e.target.value);
-                        updateDueDay(t.id, idx >= 0 ? idx + 1 : null);
-                      }}
-                      className="border rounded px-2 py-1"
-                    >
-                      <option value="">未設定</option>
-                      {sprintDates.map((date) => (
-                        <option key={date} value={date}>
-                          {date}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => deleteTask(t.id)}
-                      className="text-red-500 hover:underline ml-2"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </li>
+          {/* タスク追加フォーム */}
+          <div className="bg-white rounded-lg p-4 shadow space-y-2">
+            <h3 className="font-medium">Add Task</h3>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">タスク名</label>
+                <input
+                  type="text"
+                  placeholder="Task name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="border rounded px-2 py-1 w-40"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">見積もり時間</label>
+                <input
+                  type="number"
+                  placeholder="Estimate"
+                  value={newEstimate}
+                  min={1}
+                  onChange={(e) => setNewEstimate(Number(e.target.value))}
+                  className="border rounded px-2 py-1 w-24"
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">親タスク</label>
+                <select
+                  value={newParentId ?? ""}
+                  onChange={(e) => setNewParentId(e.target.value ? Number(e.target.value) : null)}
+                  className="border rounded px-2 py-1 w-32"
+                >
+                  <option value="">親タスクなし</option>
+                  {tasks.filter(t => !t.parentId).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">完了日</label>
+                <select
+                  value={newCompletedDate}
+                  onChange={e => setNewCompletedDate(e.target.value)}
+                  className="border rounded px-2 py-1 w-32"
+                >
+                  <option value="">未完了</option>
+                  {sprintDates.map(date => (
+                    <option key={date} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-600 mb-1">完了予定日</label>
+                <select
+                  value={newDueDate}
+                  onChange={e => setNewDueDate(e.target.value)}
+                  className="border rounded px-2 py-1 w-32"
+                >
+                  <option value="">未設定</option>
+                  {sprintDates.map(date => (
+                    <option key={date} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={addTask}
+                className="bg-blue-500 text-white px-4 py-2 rounded h-10 self-end"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* タスク一覧表示（親子構造・完了日編集・削除） */}
+          <div className="bg-white rounded-lg p-4 shadow">
+            <h3 className="font-medium mb-2">Tasks</h3>
+            <ul className="space-y-2 text-sm">
+              {/* 親タスクも表示し、子タスクはインデントして表示 */}
+              {tasks.map((parent) => (
+                <React.Fragment key={parent.id}>
+                  <li className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{parent.name}</span>
+                      <span className="text-gray-500">({parent.estimate}h)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <label className="text-gray-600">完了日:</label>
+                      <select
+                        value={parent.completedOnDay !== undefined && parent.completedOnDay !== null ? sprintDates[parent.completedOnDay - 1] : ""}
+                        onChange={(e) => {
+                          const idx = sprintDates.indexOf(e.target.value);
+                          updateCompletedDay(parent.id, idx >= 0 ? idx + 1 : null);
+                        }}
+                        className="border rounded px-2 py-1"
+                      >
+                        <option value="">未完了</option>
+                        {sprintDates.map((date) => (
+                          <option key={date} value={date}>
+                            {date}
+                          </option>
+                        ))}
+                      </select>
+                      <label className="text-gray-600">完了予定日:</label>
+                      <select
+                        value={parent.dueOnDay !== undefined && parent.dueOnDay !== null ? sprintDates[parent.dueOnDay - 1] : ""}
+                        onChange={(e) => {
+                          const idx = sprintDates.indexOf(e.target.value);
+                          updateDueDay(parent.id, idx >= 0 ? idx + 1 : null);
+                        }}
+                        className="border rounded px-2 py-1"
+                      >
+                        <option value="">未設定</option>
+                        {sprintDates.map((date) => (
+                          <option key={date} value={date}>
+                            {date}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => deleteTask(parent.id)}
+                        className="text-red-500 hover:underline ml-2"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </li>
+                  {/* 子タスクをインデントして表示 */}
+                  {parent.children && parent.children.map((t) => (
+                    <li key={t.id} className="flex justify-between items-center pl-6">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">{t.name}</span>
+                        <span className="text-gray-500">({t.estimate}h)</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <label className="text-gray-600">完了日:</label>
+                        <select
+                          value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
+                          onChange={(e) => {
+                            const idx = sprintDates.indexOf(e.target.value);
+                            updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
+                          }}
+                          className="border rounded px-2 py-1"
+                        >
+                          <option value="">未完了</option>
+                          {sprintDates.map((date) => (
+                            <option key={date} value={date}>
+                              {date}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="text-gray-600">完了予定日:</label>
+                        <select
+                          value={t.dueOnDay !== undefined && t.dueOnDay !== null ? sprintDates[t.dueOnDay - 1] : ""}
+                          onChange={(e) => {
+                            const idx = sprintDates.indexOf(e.target.value);
+                            updateDueDay(t.id, idx >= 0 ? idx + 1 : null);
+                          }}
+                          className="border rounded px-2 py-1"
+                        >
+                          <option value="">未設定</option>
+                          {sprintDates.map((date) => (
+                            <option key={date} value={date}>
+                              {date}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => deleteTask(t.id)}
+                          className="text-red-500 hover:underline ml-2"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </React.Fragment>
               ))}
-            </React.Fragment>
-          ))}
-        </ul>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
