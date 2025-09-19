@@ -235,6 +235,25 @@ export default function BurndownApp() {
   };
 
   /**
+   * タスクのストーリーポイントを更新する
+   * @param {number} taskId - 対象タスクID
+   * @param {number} estimate - 新しいストーリーポイント
+   */
+  const updateEstimate = (taskId: number, estimate: number) => {
+    // 再帰的にタスクと子タスクを更新する
+    const updateTask = (t: Task): Task => {
+      if (t.id === taskId) {
+        return { ...t, estimate };
+      }
+      if (t.children && t.children.length > 0) {
+        return { ...t, children: t.children.map(updateTask) };
+      }
+      return t;
+    };
+    setTasks((prev) => prev.map(updateTask));
+  };
+
+  /**
    * タスク削除処理
    * @param {number} taskId - 削除するタスクのID
    */
@@ -309,12 +328,21 @@ export default function BurndownApp() {
           >
             <div className="flex items-center space-x-2">
               <span className={level === 0 ? "font-bold text-blue-700" : "font-medium"}>{t.name}</span>
-              {/* 最下層のみ見積もり時間を表示 */}
-              {isLeaf && <span className="text-gray-500">({t.estimate}h)</span>}
             </div>
             {/* 最下層のみ完了日・完了予定日・削除ボタンを表示 */}
             {isLeaf && (
               <div className="flex items-center space-x-2">
+
+                <label className="text-gray-600">ストーリーポイント:</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={t.estimate}
+                  onChange={e => updateEstimate(t.id, Number(e.target.value))}
+                  className="border rounded px-2 py-1 w-16 text-gray-500"
+                  style={{ marginLeft: "8px" }}
+                />
+
                 <label className="text-gray-600">完了日:</label>
                 <select
                   value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
@@ -472,7 +500,7 @@ export default function BurndownApp() {
                 />
               </div>
               <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">見積もり時間</label>
+                <label className="text-xs text-gray-600 mb-1">ストーリーポイント</label>
                 <input
                   type="number"
                   placeholder="Estimate"
@@ -500,21 +528,6 @@ export default function BurndownApp() {
                       ]);
                     return renderOptions(tasks);
                   })()}
-                </select>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-xs text-gray-600 mb-1">完了日</label>
-                <select
-                  value={newCompletedDate}
-                  onChange={e => setNewCompletedDate(e.target.value)}
-                  className="border rounded px-2 py-1 w-32"
-                >
-                  <option value="">未完了</option>
-                  {sprintDates.map(date => (
-                    <option key={date} value={date}>
-                      {date}
-                    </option>
-                  ))}
                 </select>
               </div>
               <div className="flex flex-col">
