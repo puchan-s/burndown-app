@@ -8,8 +8,8 @@ import BurndownChart, { ChartPoint } from "./BurndownChart";
  * @property {number} id - タスクの一意なID
  * @property {string} name - タスク名
  * @property {number} estimate - 見積もり工数（時間）
- * @property {number | null | undefined} completedOnDay - スプリント内の完了日（1~sprintDays）、未完了の場合はnullまたはundefined
- * @property {number | null | undefined} dueOnDay - スプリント内の完了予定日（1~sprintDays）、未設定の場合はnullまたはundefined
+ * @property {number | null | undefined} completedOnDay - スプリント内の完了日（日付）、未完了の場合はnullまたはundefined
+ * @property {number | null | undefined} dueOnDay - スプリント内の完了予定日（日付）、未設定の場合はnullまたはundefined
  * @property {number | null} [parentId] - 親タスクID（nullなら親タスク）
  * @property {Task[]} [children] - 子タスク配列
  */
@@ -17,8 +17,8 @@ type Task = {
   id: number;
   name: string;
   estimate: number;
-  completedOnDay?: number | null;
-  dueOnDay?: number | null;
+  completedOnDay?: Date | null;
+  dueOnDay?: Date | null;
   parentId?: number | null; // nullなら親タスク
   children?: Task[];        // 子タスク配列
 };
@@ -33,7 +33,7 @@ const flattenChildTasks = (tasks: Task[]): Task[] => {
   for (const t of tasks) {
     if (t.children && t.children.length > 0) {
       result = result.concat(flattenChildTasks(t.children));
-    } else if (t.parentId !== null) {
+    } else {
       result.push(t);
     }
   }
@@ -52,15 +52,15 @@ function buildBurndownData(sprintDates: string[], tasks: Task[]): ChartPoint[] {
 
   const data: ChartPoint[] = [];
   for (let d = 0; d < sprintDates.length; d++) {
-    const dateStr = sprintDates[d];
+    const dateStr = new Date(sprintDates[d]);
     // d日目までに完了したタスクの合計見積もり
     const completedSum = tasks
-      .filter((t) => t.completedOnDay !== null && t.completedOnDay !== undefined && sprintDates[t.completedOnDay - 1] <= dateStr)
+      .filter((t) => t.completedOnDay !== null && t.completedOnDay !== undefined && t.completedOnDay <= dateStr)
       .reduce((s, t) => s + t.estimate, 0);
 
     // d日目までに完了予定のタスクの合計見積もり
     const dueSum = tasks
-      .filter((t) => t.dueOnDay !== null && t.dueOnDay !== undefined && sprintDates[t.dueOnDay - 1] <= dateStr)
+      .filter((t) => t.dueOnDay !== null && t.dueOnDay !== undefined && t.dueOnDay <= dateStr)
       .reduce((s, t) => s + t.estimate, 0);
 
     // 実際の残作業量
@@ -71,7 +71,7 @@ function buildBurndownData(sprintDates: string[], tasks: Task[]): ChartPoint[] {
     const dueRemaining = Math.max(totalEstimate - dueSum, 0);
 
     data.push({
-      day: dateStr,
+      day: sprintDates[d],
       ideal: Math.round(idealRemaining * 100) / 100,
       actual: Math.round(remaining * 100) / 100,
       due: Math.round(dueRemaining * 100) / 100, // 追加
@@ -88,7 +88,7 @@ function buildBurndownData(sprintDates: string[], tasks: Task[]): ChartPoint[] {
  */
 export default function BurndownApp() {
   /** スプリント日数 */
-  const sprintDays = 14;
+  const [sprintDays, setSprintDays] = useState<number>(14);
 
   /** スプリント開始日（例: 今日） */
   const [sprintStartDate] = useState<Date>(new Date());
@@ -109,6 +109,23 @@ export default function BurndownApp() {
     return dates;
   };
 
+  /**
+   * 指定した開始日から指定日数分の日付配列を生成
+   * @param {string} startDateStr - 開始日（YYYY-MM-DD）
+   * @param {number} days - 日数
+   * @returns {string[]} 日付文字列配列
+   */
+  const getSprintDatesFromStart = (startDateStr: string, days: number): string[] => {
+    const dates: string[] = [];
+    const startDate = new Date(startDateStr);
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    return dates;
+  };
+
   const sprintDates = useMemo(() => getSprintDates(sprintStartDate, sprintDays), [sprintStartDate, sprintDays]);
 
   /** タスク一覧の状態 */
@@ -122,25 +139,70 @@ export default function BurndownApp() {
   // 新規タスクの親タスクID（親タスクなしなら null）
   const [newParentId, setNewParentId] = useState<number | null>(null);
 
-  /** 新規タスク完了日（初期値: 未完了） */
-  const [newCompletedDate, setNewCompletedDate] = useState<string>("");
   /** 新規タスク完了予定日（初期値: 未設定） */
-  const [newDueDate, setNewDueDate] = useState<string>("");
+  const [newDueDate, setNewDueDate] = useState<Date | null>(null);
 
-  /** チャート用データ（tasksが変化したら再計算） */
-  const chartData = useMemo(
-    () => buildBurndownData(sprintDates, flattenChildTasks(tasks)),
-    [tasks, sprintDates]
+  // --- グラフ用の開始日状態 ---
+  const [chartGraphStartDate, setChartGraphStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+
+  /**
+   * グラフ用の日付配列（指定した開始日から）
+   */
+  const chartGraphDates = useMemo(
+    () => getSprintDatesFromStart(chartGraphStartDate, sprintDays),
+    [chartGraphStartDate, sprintDays]
   );
+
+  /** グラフ用データ（グラフ開始日・日数変更時も再計算される） */
+  const chartData = useMemo(
+    () => buildBurndownData(chartGraphDates, flattenChildTasks(tasks)),
+    [tasks, chartGraphDates]
+  );
+
+  /**
+   * タスクを初期化する
+   * @param task - 初期化するタスク
+   * @returns - 初期化されたタスク
+   */
+  const initTask = (task: Task) => {
+
+    const retTask = { ...task };
+
+      if( task.dueOnDay ) {
+        retTask.dueOnDay = new Date(task.dueOnDay);
+      }
+      if( task.completedOnDay ) {
+        retTask.completedOnDay = new Date(task.completedOnDay);
+      }
+      if( retTask.children && retTask.children.length > 0 ) {
+
+        const childList: Task[] = [];
+
+        for( let child of retTask.children ) {
+          childList.push(initTask(child));
+        }
+
+        retTask.children = childList;
+      }
+
+      return retTask;
+  };
 
   /**
    * コンポーネントの初回マウント時にローカルストレージからタスク一覧を取得し、状態にセットする副作用
    * - ページをリロードしても前回保存したタスク一覧を復元できる
    */
   useEffect(() => {
-    const saved = localStorage.getItem("tasks");
-    if (saved) {
-      setTasks(JSON.parse(saved));
+    const localData = localStorage.getItem("tasks");
+    if (localData) {
+
+      const parsedTasks = [];
+
+      for( let task of JSON.parse(localData) ) {
+        parsedTasks.push(initTask(task));
+      }
+      
+      setTasks(parsedTasks);
     }
   }, []);
 
@@ -157,16 +219,16 @@ export default function BurndownApp() {
    */
   const addTask = () => {
     if (!newName) return;
-    const completedIdx = sprintDates.indexOf(newCompletedDate);
-    const dueIdx = sprintDates.indexOf(newDueDate);
+    if (!newDueDate) return;
+
     const newTask: Task = {
       id: Date.now(),
       name: newName,
       estimate: newEstimate,
       parentId: newParentId ?? null,
       children: [],
-      completedOnDay: completedIdx >= 0 ? completedIdx + 1 : null,
-      dueOnDay: dueIdx >= 0 ? dueIdx + 1 : null,
+      completedOnDay: null,
+      dueOnDay: newDueDate ? newDueDate : null,
     };
 
     // 再帰的に親タスクを探してchildrenに追加
@@ -191,17 +253,16 @@ export default function BurndownApp() {
     setNewName("");
     setNewEstimate(1);
     setNewParentId(null);
-    setNewCompletedDate("");
-    setNewDueDate("");
+    setNewDueDate(null);
   };
 
 
   /**
    * タスクの完了日を更新する
    * @param {number} taskId - 対象タスクID
-   * @param {number | null} day - 完了日（nullで未完了）
+   * @param {Date | null} day - 完了日（nullで未完了）
    */
-  const updateCompletedDay = (taskId: number, day: number | null) => {
+  const updateCompletedDay = (taskId: number, day: Date | null) => {
     // 再帰的にタスクと子タスクを更新するヘルパー関数
     const updateTask = (t: Task): Task => {
       if (t.id === taskId) {
@@ -220,7 +281,7 @@ export default function BurndownApp() {
    * @param {number} taskId - 対象タスクID
    * @param {number | null} day - 完了予定日（nullで未設定）
    */
-  const updateDueDay = (taskId: number, day: number | null) => {
+  const updateDueDay = (taskId: number, day: Date | null) => {
     // 再帰的にタスクと子タスクを更新するヘルパー関数
     const updateTask = (t: Task): Task => {
       if (t.id === taskId) {
@@ -272,26 +333,23 @@ export default function BurndownApp() {
   };
 
   /**
-   * タスク一覧をローカルストレージに保存するユーティリティ関数
-   * @param {Task[]} tasks - 保存するタスク配列
+   * 2つの日付が同じかどうかを判定するユーティリティ
+   * @param d1  - 対象日付1
+   * @param d2  - 対象日付2
+   * @returns  - 同じ日付であればtrue、そうでなければfalse
    */
-  const saveTasks = (tasks: Task[]) => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
-  };
-
-  /**
-   * ローカルストレージからタスク一覧を取得するユーティリティ関数
-   * @returns {Task[]} 保存されているタスク配列。なければ空配列を返す
-   */
-  const loadTasks = () => {
-    const saved = localStorage.getItem("tasks");
-    return saved ? JSON.parse(saved) : [];
-  };
+function isSameDate(d1: Date, d2: Date): boolean {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
 
   /**
    * 今日の日付（YYYY-MM-DD形式）を取得
    */
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date();
 
   /**
    * 今日のタスク（完了予定日が今日のもの）を抽出
@@ -301,7 +359,7 @@ export default function BurndownApp() {
     const result: Task[] = [];
     for (const t of tasks) {
       // 親タスク自身が今日のタスク
-      if (t.dueOnDay !== undefined && t.dueOnDay !== null && sprintDates[t.dueOnDay - 1] === todayStr) {
+      if ( t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null && isSameDate(t.dueOnDay, todayStr)) {
         result.push(t);
       }
       // 子タスクもチェック
@@ -345,11 +403,8 @@ export default function BurndownApp() {
 
                 <label className="text-gray-600">完了日:</label>
                 <select
-                  value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
-                  onChange={(e) => {
-                    const idx = sprintDates.indexOf(e.target.value);
-                    updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
-                  }}
+                  value={ t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : "" }
+                  onChange={(e) => {updateCompletedDay(t.id, new Date(e.target.value));}}
                   className="border rounded px-2 py-1"
                 >
                   <option value="">未完了</option>
@@ -361,10 +416,9 @@ export default function BurndownApp() {
                 </select>
                 <label className="text-gray-600">完了予定日:</label>
                 <select
-                  value={t.dueOnDay !== undefined && t.dueOnDay !== null ? sprintDates[t.dueOnDay - 1] : ""}
+                  value={ t.dueOnDay !== undefined && t.dueOnDay !== null ? t.dueOnDay.toISOString().slice(0, 10) : "" }
                   onChange={(e) => {
-                    const idx = sprintDates.indexOf(e.target.value);
-                    updateDueDay(t.id, idx >= 0 ? idx + 1 : null);
+                    updateDueDay(t.id, new Date(e.target.value));
                   }}
                   className="border rounded px-2 py-1"
                 >
@@ -421,11 +475,50 @@ export default function BurndownApp() {
     return undefined;
   };
 
+  // --- グラフ開始日選択肢を1年前から表示 ---
+  const getDateOptions = (): string[] => {
+    const options: string[] = [];
+    const today = new Date();
+    const start = new Date(today);
+    start.setFullYear(today.getFullYear() - 1); // 1年前
+    for (
+      let d = new Date(start);
+      d <= today;
+      d.setDate(d.getDate() + 1)
+    ) {
+      options.push(d.toISOString().slice(0, 10));
+    }
+    return options;
+  };
+
+  const graphDateOptions = useMemo(getDateOptions, []);
+
   return (
     <div className="max-w-[1600px] mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Sample Burndown App</h1>
-        <div className="text-sm text-gray-600">Sprint: {sprintDays} days</div>
+          {/* グラフ開始日・日数選択フォーム */}
+          <div className="mb-4 flex items-center gap-4">
+            <label className="text-sm text-gray-700 mr-2">グラフの開始日:</label>
+            <select
+              value={chartGraphStartDate}
+              onChange={e => setChartGraphStartDate(e.target.value)}
+              className="border rounded px-2 py-1"
+            >
+              {graphDateOptions.map(date => (
+                <option key={date} value={date}>{date}</option>
+              ))}
+            </select>
+            <label className="text-sm text-gray-700 ml-4 mr-2">グラフ日数:</label>
+            <input
+              type="number"
+              min={1}
+              max={sprintDates.length}
+              value={sprintDays}
+              onChange={e => setSprintDays(Number(e.target.value))}
+              className="border rounded px-2 py-1 w-20"
+            />
+          </div>
       </div>
 
       <div className="flex">
@@ -437,7 +530,7 @@ export default function BurndownApp() {
           </div>
           <div className="w-80 ml-6">
             <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
-              <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr}）</h3>
+              <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr.toISOString().slice(0, 10)}）</h3>
               {todayTasks.length === 0 ? (
                 <div className="text-gray-500">本日のタスクはありません。</div>
               ) : (
@@ -456,10 +549,9 @@ export default function BurndownApp() {
                         <div className="flex items-center space-x-2 mt-1">
                           <label className="text-gray-600 text-xs">完了日:</label>
                           <select
-                            value={t.completedOnDay !== undefined && t.completedOnDay !== null ? sprintDates[t.completedOnDay - 1] : ""}
+                            value={t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : ""}
                             onChange={(e) => {
-                              const idx = sprintDates.indexOf(e.target.value);
-                              updateCompletedDay(t.id, idx >= 0 ? idx + 1 : null);
+                              updateCompletedDay(t.id, e.target.value ? new Date(e.target.value) : null);
                             }}
                             className="border rounded px-2 py-1 text-xs"
                           >
@@ -533,8 +625,8 @@ export default function BurndownApp() {
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">完了予定日</label>
                 <select
-                  value={newDueDate}
-                  onChange={e => setNewDueDate(e.target.value)}
+                  value={newDueDate ? newDueDate.toISOString().slice(0, 10) : ""}
+                  onChange={e => setNewDueDate(new Date(e.target.value))}
                   className="border rounded px-2 py-1 w-32"
                 >
                   <option value="">未設定</option>
