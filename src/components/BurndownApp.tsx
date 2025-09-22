@@ -1,27 +1,8 @@
 "use client";
 import React, { useMemo, useState, useEffect } from "react";
 import BurndownChart, { ChartPoint } from "./BurndownChart";
-
-/**
- * タスクの型定義
- * @typedef {Object} Task
- * @property {number} id - タスクの一意なID
- * @property {string} name - タスク名
- * @property {number} estimate - 見積もり工数（時間）
- * @property {number | null | undefined} completedOnDay - スプリント内の完了日（日付）、未完了の場合はnullまたはundefined
- * @property {number | null | undefined} dueOnDay - スプリント内の完了予定日（日付）、未設定の場合はnullまたはundefined
- * @property {number | null} [parentId] - 親タスクID（nullなら親タスク）
- * @property {Task[]} [children] - 子タスク配列
- */
-type Task = {
-  id: number;
-  name: string;
-  estimate: number;
-  completedOnDay?: Date | null;
-  dueOnDay?: Date | null;
-  parentId?: number | null; // nullなら親タスク
-  children?: Task[];        // 子タスク配列
-};
+import { useTasks } from "../context/TasksProvider";
+import TodayTasks from "./todayTasks";
 
 /**
  * タスク配列（親子構造）から子タスクのみをフラットな配列に変換するユーティリティ
@@ -129,7 +110,7 @@ export default function BurndownApp() {
   const sprintDates = useMemo(() => getSprintDates(sprintStartDate, sprintDays), [sprintStartDate, sprintDays]);
 
   /** タスク一覧の状態 */
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { tasks, setTasks } = useTasks();
 
   /** 新規タスク名の状態 */
   const [newName, setNewName] = useState("");
@@ -347,11 +328,6 @@ function isSameDate(d1: Date, d2: Date): boolean {
 }
 
   /**
-   * 今日の日付（YYYY-MM-DD形式）を取得
-   */
-  const todayStr = new Date();
-
-  /**
    * 今日のタスク（完了予定日が今日のもの）を抽出
    * 親・子タスク両方を対象
    */
@@ -359,7 +335,7 @@ function isSameDate(d1: Date, d2: Date): boolean {
     const result: Task[] = [];
     for (const t of tasks) {
       // 親タスク自身が今日のタスク
-      if ( t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null && isSameDate(t.dueOnDay, todayStr)) {
+      if ( t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null && isSameDate(t.dueOnDay, new Date())) {
         result.push(t);
       }
       // 子タスクもチェック
@@ -443,38 +419,6 @@ function isSameDate(d1: Date, d2: Date): boolean {
       );
     });
 
-  /**
-   * 指定タスクの親階層名をすべて取得して " > " で連結するユーティリティ
-   */
-  const getParentNames = (task: Task, allTasks: Task[]): string => {
-    const names: string[] = [];
-    let currentParentId = task.parentId;
-    while (currentParentId !== null && currentParentId !== undefined) {
-      const parent = findTaskById(allTasks, currentParentId);
-      if (parent) {
-        names.unshift(parent.name);
-        currentParentId = parent.parentId;
-      } else {
-        break;
-      }
-    }
-    return names.length > 0 ? `[${names.join("] > [")}]` : "";
-  };
-
-  /**
-   * タスクIDから再帰的にタスクを検索
-   */
-  const findTaskById = (tasks: Task[], id: number): Task | undefined => {
-    for (const t of tasks) {
-      if (t.id === id) return t;
-      if (t.children) {
-        const found = findTaskById(t.children, id);
-        if (found) return found;
-      }
-    }
-    return undefined;
-  };
-
   // --- グラフ開始日選択肢を1年前から表示 ---
   const getDateOptions = (): string[] => {
     const options: string[] = [];
@@ -524,53 +468,8 @@ function isSameDate(d1: Date, d2: Date): boolean {
       <div className="flex">
         {/* 左側：今日のタスク */}
         {/* --- 今日のタスクリスト表示（右側に固定、親階層すべて表示） --- */}
-        <div className="flex">
-          <div className="flex-1">
-            {/* ...既存のチャートやタスク一覧... */}
-          </div>
-          <div className="w-80 ml-6">
-            <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
-              <h3 className="font-medium mb-2">今日のタスク（完了予定日: {todayStr.toISOString().slice(0, 10)}）</h3>
-              {todayTasks.length === 0 ? (
-                <div className="text-gray-500">本日のタスクはありません。</div>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {todayTasks.map(t => (
-                    <li key={t.id} className="flex flex-col">
-                      {/* 階層すべての親タスク名を表示 */}
-                      {t.parentId !== null && t.parentId !== undefined && (
-                        <span className="text-xs text-gray-500 mb-1">
-                          {getParentNames(t, tasks)}
-                        </span>
-                      )}
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">{t.name}</span>
-                        <span className="text-gray-500">({t.estimate}h)</span>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <label className="text-gray-600 text-xs">完了日:</label>
-                          <select
-                            value={t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : ""}
-                            onChange={(e) => {
-                              updateCompletedDay(t.id, e.target.value ? new Date(e.target.value) : null);
-                            }}
-                            className="border rounded px-2 py-1 text-xs"
-                          >
-                            <option value="">未完了</option>
-                            {sprintDates.map((date) => (
-                              <option key={date} value={date}>
-                                {date}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
+        <TodayTasks todayTasks={todayTasks}  sprintDates={sprintDates} />
+
         {/* 右側：既存のタスク一覧やチャート */}
         <div className="flex-1">
           {/* ヘッダー: タイトルとスプリント日数表示 */}
