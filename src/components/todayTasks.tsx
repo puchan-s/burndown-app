@@ -2,70 +2,69 @@
 import React from "react";
 import { useTasks } from "../context/TasksProvider";
 
-/**
- * タスクIDから再帰的にタスクを検索
- */
-const findTaskById = (tasks: Task[], id: number): Task | undefined => {
-    for (const t of tasks) {
-        if (t.id === id) return t;
-        if (t.children) {
-            const found = findTaskById(t.children, id);
-            if (found) return found;
-        }
-    }
-    return undefined;
-};
-
-/**
- * タスクの完了日を更新する
- * @param {number} taskId - 対象タスクID
- * @param {Date | null} day - 完了日（nullで未完了）
- */
-const updateCompletedDay = (taskId: number, day: Date | null) => {
-
-    // TasksProvider から setTasks を取得
-    const { setTasks } = useTasks();
-
-    // 再帰的にタスクと子タスクを更新するヘルパー関数
-    const updateTask = (t: Task): Task => {
-        if (t.id === taskId) {
-            return { ...t, completedOnDay: day };
-        }
-        if (t.children && t.children.length > 0) {
-            return { ...t, children: t.children.map(updateTask) };
-        }
-        return t;
-    };
-    setTasks((prev) => prev.map(updateTask));
-};
-
-/**
- * 指定タスクの親階層名をすべて取得して " > " で連結するユーティリティ
- */
-const getParentNames = (task: Task, allTasks: Task[]): string => {
-    const names: string[] = [];
-    let currentParentId = task.parentId;
-    while (currentParentId !== null && currentParentId !== undefined) {
-        const parent = findTaskById(allTasks, currentParentId);
-        if (parent) {
-            names.unshift(parent.name);
-            currentParentId = parent.parentId;
-        } else {
-            break;
-        }
-    }
-    return names.length > 0 ? `[${names.join("] > [")}]` : "";
-};
-
 
 export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Task[]; sprintDates: string[] }) {
 
     const { tasks } = useTasks();
+    // TasksProvider から setTasks を取得
+    const { setTasks } = useTasks();
 
     /**
       * 今日の日付（YYYY-MM-DD形式）を取得
       */
     const today = new Date();
+
+    /**
+ * タスクIDから再帰的にタスクを検索
+ */
+    const findTaskById = (tasks: Task[], id: number): Task | undefined => {
+        for (const t of tasks) {
+            if (t.id === id) return t;
+            if (t.children) {
+                const found = findTaskById(t.children, id);
+                if (found) return found;
+            }
+        }
+        return undefined;
+    };
+
+    /**
+     * タスクの完了日を更新する
+     * @param {number} taskId - 対象タスクID
+     * @param {Date | null} day - 完了日（nullで未完了）
+     */
+    const updateCompletedDay = (taskId: number, day: Date | null) => {
+
+        // 再帰的にタスクと子タスクを更新するヘルパー関数
+        const updateTask = (t: Task): Task => {
+            if (t.id === taskId) {
+                return { ...t, completedOnDay: day };
+            }
+            if (t.children && t.children.length > 0) {
+                return { ...t, children: t.children.map(updateTask) };
+            }
+            return t;
+        };
+        setTasks((prev) => prev.map(updateTask));
+    };
+
+    /**
+     * 指定タスクの親階層名をすべて取得して " > " で連結するユーティリティ
+     */
+    const getParentNames = (task: Task, allTasks: Task[]): string => {
+        const names: string[] = [];
+        let currentParentId = task.parentId;
+        while (currentParentId !== null && currentParentId !== undefined) {
+            const parent = findTaskById(allTasks, currentParentId);
+            if (parent) {
+                names.unshift(parent.name);
+                currentParentId = parent.parentId;
+            } else {
+                break;
+            }
+        }
+        return names.length > 0 ? `[${names.join("] > [")}]` : "";
+    };
 
     return (
         <div className="flex">
