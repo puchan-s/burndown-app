@@ -73,7 +73,7 @@ export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Ta
             </div>
             <div className="w-80 ml-6">
                 <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
-                    <h3 className="font-medium mb-2">今日のタスク（完了予定日: {today.toISOString().slice(0, 10)}）</h3>
+                    <h3 className="font-medium mb-2">今日のタスク </h3>
                     {todayTasks.length === 0 ? (
                         <div className="text-gray-500">本日のタスクはありません。</div>
                     ) : (
