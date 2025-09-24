@@ -168,7 +168,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                                 <label className="text-gray-600">完了日:</label>
                                 <select
                                     value={t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : ""}
-                                    onChange={(e) => { updateCompletedDay(t.id, new Date(e.target.value)); }}
+                                    onChange={(e) => { e.target.value !== "" ? updateCompletedDay(t.id, new Date(e.target.value)) : updateCompletedDay(t.id, null); }}
                                     className="border rounded px-2 py-1"
                                 >
                                     <option value="">未完了</option>
@@ -182,7 +182,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                                 <select
                                     value={t.dueOnDay !== undefined && t.dueOnDay !== null ? t.dueOnDay.toISOString().slice(0, 10) : ""}
                                     onChange={(e) => {
-                                        updateDueDay(t.id, new Date(e.target.value));
+                                        e.target.value !== "" ? updateDueDay(t.id, new Date(e.target.value)) : updateDueDay(t.id, null);
                                     }}
                                     className="border rounded px-2 py-1"
                                 >
@@ -258,7 +258,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                         <label className="text-xs text-gray-600 mb-1">完了予定日</label>
                         <select
                             value={newDueDate ? newDueDate.toISOString().slice(0, 10) : ""}
-                            onChange={e => setNewDueDate(new Date(e.target.value))}
+                            onChange={e => e.target.value !== "" ? setNewDueDate(new Date(e.target.value)) : setNewDueDate(null)}
                             className="border rounded px-2 py-1 w-32"
                         >
                             <option value="">未設定</option>
