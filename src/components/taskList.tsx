@@ -1,12 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useTasks, } from "../context/TasksProvider";
 
-export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
+export default function TaskList() {
 
     // TasksProvider から setTasks を取得
     const { setTasks } = useTasks();
 
     const { tasks } = useTasks();
+
+    const getDueDateOptions = (): string[] => {
+        const options: string[] = [];
+        const end = new Date();
+        end.setMonth(end.getMonth() + 6); // 6ヶ月後
+        const start = new Date();
+        start.setMonth(start.getMonth() - 6); // 6ヶ月前
+        for (
+            let d = new Date(start);
+            d <= end;
+            d.setDate(d.getDate() + 1)
+        ) {
+            options.push(d.toISOString().slice(0, 10));
+        }
+        return options;
+    };
+
+    const selectDateOptions = useMemo(getDueDateOptions, []);
 
     /** 新規タスク名の状態 */
     const [newName, setNewName] = useState("");
@@ -172,7 +190,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                                     className="border rounded px-2 py-1"
                                 >
                                     <option value="">未完了</option>
-                                    {sprintDates.map((date) => (
+                                    {selectDateOptions.map((date) => (
                                         <option key={date} value={date}>
                                             {date}
                                         </option>
@@ -187,7 +205,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                                     className="border rounded px-2 py-1"
                                 >
                                     <option value="">未設定</option>
-                                    {sprintDates.map((date) => (
+                                    {selectDateOptions.map((date) => (
                                         <option key={date} value={date}>
                                             {date}
                                         </option>
@@ -262,7 +280,7 @@ export default function TaskList({ sprintDates }: { sprintDates: string[] }) {
                             className="border rounded px-2 py-1 w-32"
                         >
                             <option value="">未設定</option>
-                            {sprintDates.map(date => (
+                            {selectDateOptions.map(date => (
                                 <option key={date} value={date}>
                                     {date}
                                 </option>

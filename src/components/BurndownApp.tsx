@@ -278,7 +278,7 @@ function isSameDate(d1: Date, d2: Date): boolean {
           <BurndownChart data={chartData} />
 
           {/* タスク一覧表示 */}
-          <TaskList sprintDates={sprintDates} />
+          <TaskList />
 
         </div>
       </div>
