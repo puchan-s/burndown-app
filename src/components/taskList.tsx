@@ -127,6 +127,7 @@ export default function TaskList() {
             children: [],
             completedOnDay: null,
             dueOnDay: newDueDate ? newDueDate : null,
+            collapsed: false,   // 初期状態は展開状態
         };
 
         // 再帰的に親タスクを探してchildrenに追加
@@ -167,7 +168,20 @@ export default function TaskList() {
                         style={{ paddingLeft: `${level * 24}px` }}
                     >
                         <div className="flex items-center space-x-2">
-                            <span className={level === 0 ? "font-bold text-blue-700" : "font-medium"}>{t.name}</span>
+                            {!isLeaf && (
+                                <button
+                                    onClick={() => toggleCollapse(t.id)}
+                                    className="text-xs text-gray-500 mr-1"
+                                >
+                                    {t.collapsed ? "▶" : "▼"}
+                                </button>
+                            )}
+                            <span
+                                className={level === 0 ? "font-bold text-blue-700 cursor-pointer" : "font-medium cursor-pointer"}
+                                onClick={() => !isLeaf && toggleCollapse(t.id)}
+                            >
+                                {t.name}
+                            </span>
                         </div>
                         {/* 最下層のみ完了日・完了予定日・削除ボタンを表示 */}
                         {isLeaf && (
@@ -220,10 +234,24 @@ export default function TaskList() {
                             </div>
                         )}
                     </li>
-                    {t.children && t.children.length > 0 && renderTasks(t.children, level + 1)}
+                    {t.children && t.children.length > 0 && !t.collapsed && renderTasks(t.children, level + 1)}
                 </React.Fragment>
             );
         });
+
+    // 👇 子階層を折りたたむ/展開する関数
+    const toggleCollapse = (taskId: number) => {
+        const updateTask = (t: Task): Task => {
+            if (t.id === taskId) {
+                return { ...t, collapsed: !t.collapsed };
+            }
+            if (t.children && t.children.length > 0) {
+                return { ...t, children: t.children.map(updateTask) };
+            }
+            return t;
+        };
+        setTasks(prev => prev.map(updateTask));
+    };
 
     return (
         <div>

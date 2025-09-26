@@ -18,4 +18,5 @@ type Task = {
     dueOnDay?: Date | null;
     parentId?: number | null; // nullなら親タスク
     children?: Task[];        // 子タスク配列
+    collapsed?: boolean; // 子タスク折りたたみ状態
 };
