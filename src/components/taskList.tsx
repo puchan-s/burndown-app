@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useTasks, } from "../context/TasksProvider";
+import { DateField } from "./DateField";
 
 export default function TaskList() {
 
@@ -155,6 +156,20 @@ export default function TaskList() {
         setNewDueDate(null);
     };
 
+    // 再帰的にフィールド更新する関数
+    const updateTaskField = (id: number, field: keyof Task, value: Date | null) => {
+        const updateTask = (task: Task): Task => {
+            if (task.id === id) {
+                return { ...task, [field]: value };
+            }
+            if (task.children) {
+                return { ...task, children: task.children.map((child) => updateTask(child)) };
+            }
+            return task;
+        };
+        setTasks((prev) => prev.map(updateTask));
+    };
+
     /**
      * 階層ごとにインデントをつけてタスクを表示し、最下層のみ詳細項目を表示
      */
@@ -196,35 +211,16 @@ export default function TaskList() {
                                     className="border rounded px-2 py-1 w-16 text-gray-500"
                                     style={{ marginLeft: "8px" }}
                                 />
-
-                                <label className="text-gray-600">完了日:</label>
-                                <select
-                                    value={t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : ""}
-                                    onChange={(e) => { e.target.value !== "" ? updateCompletedDay(t.id, new Date(e.target.value)) : updateCompletedDay(t.id, null); }}
-                                    className="border rounded px-2 py-1"
-                                >
-                                    <option value="">未完了</option>
-                                    {selectDateOptions.map((date) => (
-                                        <option key={date} value={date}>
-                                            {date}
-                                        </option>
-                                    ))}
-                                </select>
-                                <label className="text-gray-600">完了予定日:</label>
-                                <select
-                                    value={t.dueOnDay !== undefined && t.dueOnDay !== null ? t.dueOnDay.toISOString().slice(0, 10) : ""}
-                                    onChange={(e) => {
-                                        e.target.value !== "" ? updateDueDay(t.id, new Date(e.target.value)) : updateDueDay(t.id, null);
-                                    }}
-                                    className="border rounded px-2 py-1"
-                                >
-                                    <option value="">未設定</option>
-                                    {selectDateOptions.map((date) => (
-                                        <option key={date} value={date}>
-                                            {date}
-                                        </option>
-                                    ))}
-                                </select>
+                                <DateField
+                                    label="完了日"
+                                    value={t.completedOnDay ?? null}
+                                    onChange={(val) => updateTaskField(t.id, "completedOnDay", val)}
+                                />
+                                <DateField
+                                    label="予定日"
+                                    value={t.dueOnDay ?? null}
+                                    onChange={(val) => updateTaskField(t.id, "dueOnDay", val)}
+                                />
                                 <button
                                     onClick={() => deleteTask(t.id)}
                                     className="text-red-500 hover:underline ml-2"
