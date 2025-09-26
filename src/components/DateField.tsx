@@ -14,7 +14,7 @@ type DateFieldProps = {
 export function DateField({ label, value, onChange }: DateFieldProps) {
   return (
     <div className="flex items-center space-x-2">
-      <span className="text-xs text-gray-500">{label}:</span>
+      { label !== "" && <span className="text-xs text-gray-500">{label}:</span>}
       <span className="text-sm text-gray-700">
         {value ? format(value, "yyyy-MM-dd") : "未設定"}
       </span>

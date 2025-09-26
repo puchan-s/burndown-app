@@ -297,19 +297,13 @@ export default function TaskList() {
                         </select>
                     </div>
                     <div className="flex flex-col">
-                        <label className="text-xs text-gray-600 mb-1">完了予定日</label>
-                        <select
-                            value={newDueDate ? newDueDate.toISOString().slice(0, 10) : ""}
-                            onChange={e => e.target.value !== "" ? setNewDueDate(new Date(e.target.value)) : setNewDueDate(null)}
-                            className="border rounded px-2 py-1 w-32"
-                        >
-                            <option value="">未設定</option>
-                            {selectDateOptions.map(date => (
-                                <option key={date} value={date}>
-                                    {date}
-                                </option>
-                            ))}
-                        </select>
+
+                        <label className="text-xs text-gray-600 mb-1">予定日</label>
+                        <DateField
+                            label=""
+                            value={newDueDate}
+                            onChange={setNewDueDate}
+                        />
                     </div>
                     <button
                         onClick={addTask}
