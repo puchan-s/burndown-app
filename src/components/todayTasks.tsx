@@ -1,22 +1,12 @@
-
 import React from "react";
 import { useTasks } from "../context/TasksProvider";
 
-
-export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Task[]; sprintDates: string[] }) {
-
-    const { tasks } = useTasks();
-    // TasksProvider から setTasks を取得
-    const { setTasks } = useTasks();
+export default function TodayTasks({ todayTasks }: { todayTasks: Task[] }) {
+    const { tasks, setTasks } = useTasks();
 
     /**
-      * 今日の日付（YYYY-MM-DD形式）を取得
-      */
-    const today = new Date();
-
-    /**
- * タスクIDから再帰的にタスクを検索
- */
+     * タスクIDから再帰的にタスクを検索
+     */
     const findTaskById = (tasks: Task[], id: number): Task | undefined => {
         for (const t of tasks) {
             if (t.id === id) return t;
@@ -30,12 +20,8 @@ export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Ta
 
     /**
      * タスクの完了日を更新する
-     * @param {number} taskId - 対象タスクID
-     * @param {Date | null} day - 完了日（nullで未完了）
      */
     const updateCompletedDay = (taskId: number, day: Date | null) => {
-
-        // 再帰的にタスクと子タスクを更新するヘルパー関数
         const updateTask = (t: Task): Task => {
             if (t.id === taskId) {
                 return { ...t, completedOnDay: day };
@@ -49,7 +35,7 @@ export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Ta
     };
 
     /**
-     * 指定タスクの親階層名をすべて取得して " > " で連結するユーティリティ
+     * 親階層名を取得
      */
     const getParentNames = (task: Task, allTasks: Task[]): string => {
         const names: string[] = [];
@@ -78,9 +64,9 @@ export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Ta
                         <div className="text-gray-500">本日のタスクはありません。</div>
                     ) : (
                         <ul className="space-y-2 text-sm">
-                            {todayTasks.map(t => (
+                            {todayTasks.map((t) => (
                                 <li key={t.id} className="flex flex-col">
-                                    {/* 階層すべての親タスク名を表示 */}
+                                    {/* 階層の親タスク名 */}
                                     {t.parentId !== null && t.parentId !== undefined && (
                                         <span className="text-xs text-gray-500 mb-1">
                                             {getParentNames(t, tasks)}
@@ -90,21 +76,22 @@ export default function TodayTasks({ todayTasks, sprintDates }: { todayTasks: Ta
                                         <span className="font-medium">{t.name}</span>
                                         <span className="text-gray-500">({t.estimate}h)</span>
                                         <div className="flex items-center space-x-2 mt-1">
-                                            <label className="text-gray-600 text-xs">完了日:</label>
-                                            <select
-                                                value={t.completedOnDay !== undefined && t.completedOnDay !== null ? t.completedOnDay.toISOString().slice(0, 10) : ""}
+                                            <input
+                                                type="checkbox"
+                                                checked={!!t.completedOnDay}
                                                 onChange={(e) => {
-                                                    updateCompletedDay(t.id, e.target.value ? new Date(e.target.value) : null);
+                                                    if (e.target.checked) {
+                                                        updateCompletedDay(t.id, new Date());
+                                                    } else {
+                                                        updateCompletedDay(t.id, null);
+                                                    }
                                                 }}
-                                                className="border rounded px-2 py-1 text-xs"
-                                            >
-                                                <option value="">未完了</option>
-                                                {sprintDates.map((date) => (
-                                                    <option key={date} value={date}>
-                                                        {date}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            />
+                                            <span className="text-xs text-gray-600">
+                                                {t.completedOnDay
+                                                    ? `✔ 完了 (${t.completedOnDay.toISOString().slice(0, 10)})`
+                                                    : "未完了"}
+                                            </span>
                                         </div>
                                     </div>
                                 </li>
