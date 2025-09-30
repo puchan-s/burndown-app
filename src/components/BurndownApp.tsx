@@ -185,41 +185,6 @@ export default function BurndownApp() {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }, [tasks]);
 
-  /**
-   * 2つの日付が同じかどうかを判定するユーティリティ
-   * @param d1  - 対象日付1
-   * @param d2  - 対象日付2
-   * @returns  - 同じ日付であればtrue、そうでなければfalse
-   */
-function isSameDate(d1: Date, d2: Date): boolean {
-  return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
-  );
-}
-
-  /**
-   * 今日のタスク（完了予定日が今日のもの）を抽出
-   * 親・子タスク両方を対象
-   */
-  const getTodayTasks = (tasks: Task[]): Task[] => {
-    const result: Task[] = [];
-    for (const t of tasks) {
-      // 親タスク自身が今日のタスク
-      if ( t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null && isSameDate(t.dueOnDay, new Date())) {
-        result.push(t);
-      }
-      // 子タスクもチェック
-      if (t.children && t.children.length > 0) {
-        result.push(...getTodayTasks(t.children));
-      }
-    }
-    return result;
-  };
-
-  const todayTasks = getTodayTasks(tasks);
-
   // --- グラフ開始日選択肢を1年前から表示 ---
   const getDateOptions = (): string[] => {
     const options: string[] = [];
@@ -269,7 +234,7 @@ function isSameDate(d1: Date, d2: Date): boolean {
       <div className="flex">
         {/* 左側：今日のタスク */}
         {/* --- 今日のタスクリスト表示（右側に固定、親階層すべて表示） --- */}
-        <TodayTasks todayTasks={todayTasks}  sprintDates={sprintDates} />
+        <TodayTasks tasks={tasks} />
 
         {/* 右側：既存のタスク一覧やチャート */}
         <div className="flex-1">
