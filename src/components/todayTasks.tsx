@@ -4,15 +4,12 @@ import { useTasks } from "../context/TasksProvider";
 export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
     const { tasks, setTasks } = useTasks();
 
-    // フラグを追加（trueなら「今日まで」、falseなら「今日のみ」）
-    const [showUntilToday, setShowUntilToday] = useState(false);
+    // 表示モード: today / untilToday / fromToday
+    const [filterMode, setFilterMode] = useState<"today" | "untilToday" | "fromToday">("today");
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    /**
-     * タスクIDから再帰的にタスクを検索
-     */
     const findTaskById = (tasks: Task[], id: number): Task | undefined => {
         for (const t of tasks) {
             if (t.id === id) return t;
@@ -24,9 +21,6 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         return undefined;
     };
 
-    /**
-     * タスクの完了日を更新する
-     */
     const updateCompletedDay = (taskId: number, day: Date | null) => {
         const updateTask = (t: Task): Task => {
             if (t.id === taskId) {
@@ -40,9 +34,6 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         setTasks((prev) => prev.map(updateTask));
     };
 
-    /**
-     * 親階層名を取得
-     */
     const getParentNames = (task: Task, allTasks: Task[]): string => {
         const names: string[] = [];
         let currentParentId = task.parentId;
@@ -58,20 +49,15 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         return names.length > 0 ? `[${names.join("] > [")}]` : "";
     };
 
-    /**
-     * 子タスクを抽出
-     */
     const getViewTasks = (tasks: Task[]): Task[] => {
         const result: Task[] = [];
         for (const t of tasks) {
-        // 親タスク自身が今日のタスク
-        if ( t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null ) {
-            result.push(t);
-        }
-        // 子タスクもチェック
-        if (t.children && t.children.length > 0) {
-            result.push(...getViewTasks(t.children));
-        }
+            if (t.children && t.children.length === 0 && t.dueOnDay !== undefined && t.dueOnDay !== null) {
+                result.push(t);
+            }
+            if (t.children && t.children.length > 0) {
+                result.push(...getViewTasks(t.children));
+            }
         }
         return result;
     };
@@ -86,7 +72,7 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         const taskDate = new Date(t.dueOnDay);
         taskDate.setHours(0, 0, 0, 0);
 
-        if (showUntilToday
+        if (filterMode === "untilToday"
             && taskDate.getTime() < today.getTime() && t.completedOnDay === null
         ) {
             // 今日以前で未完了のタスク(今日まで表示)
@@ -95,32 +81,34 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         } else if (taskDate.getTime() === today.getTime()) {
             // 今日のタスク
             viewFlg = true;
+        }else if (filterMode === "fromToday"
+            && taskDate.getTime() > today.getTime() && t.completedOnDay === null
+        ){
+            // 今日以降で未完了のタスク(今日以降表示)
+            viewFlg = true;
         }
 
         return viewFlg;
-
 
 
     });
 
     return (
         <div className="flex">
-            <div className="flex-1">
-                {/* ...既存のチャートやタスク一覧... */}
-            </div>
+            <div className="flex-1">{/* ...既存のチャートやタスク一覧... */}</div>
             <div className="w-80 ml-6">
                 <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
                     <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">今日のタスク</h3>
-                        {/* フラグ切り替え */}
-                        <label className="flex items-center text-xs space-x-1">
-                            <input
-                                type="checkbox"
-                                checked={showUntilToday}
-                                onChange={(e) => setShowUntilToday(e.target.checked)}
-                            />
-                            <span>今日まで表示</span>
-                        </label>
+                        <h3 className="font-medium">タスク表示</h3>
+                        <select
+                            value={filterMode}
+                            onChange={(e) => setFilterMode(e.target.value as any)}
+                            className="text-xs border rounded px-1 py-0.5"
+                        >
+                            <option value="today">今日のみ</option>
+                            <option value="untilToday">今日まで</option>
+                            <option value="fromToday">今日以降</option>
+                        </select>
                     </div>
 
                     {filteredTasks.length === 0 ? (
@@ -129,7 +117,6 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
                         <ul className="space-y-2 text-sm">
                             {filteredTasks.map((t) => (
                                 <li key={t.id} className="flex flex-col">
-                                    {/* 階層の親タスク名 */}
                                     {t.parentId !== null && t.parentId !== undefined && (
                                         <span className="text-xs text-gray-500 mb-1">
                                             {getParentNames(t, tasks)}
