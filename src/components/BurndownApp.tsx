@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import BurndownChart, { ChartPoint } from "./BurndownChart";
 import TaskList from "./taskList";
 import { useTasks } from "../context/TasksProvider";
-import TodayTasks from "./todayTasks";
+import DateTasks from "./DateTasks";
 
 /**
  * タスク配列（親子構造）から子タスクのみをフラットな配列に変換するユーティリティ
@@ -234,7 +234,7 @@ export default function BurndownApp() {
       <div className="flex">
         {/* 左側：今日のタスク */}
         {/* --- 今日のタスクリスト表示（右側に固定、親階層すべて表示） --- */}
-        <TodayTasks initTasks={tasks} />
+        <DateTasks initTasks={tasks} />
 
         {/* 右側：既存のタスク一覧やチャート */}
         <div className="flex-1">
