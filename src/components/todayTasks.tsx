@@ -77,19 +77,30 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
     };
 
     const filteredTasks = getViewTasks(initTasks).filter((t) => {
-        if (!t.dueOnDay) return false;
+
+        let viewFlg = false;
+
+        if (!t.dueOnDay) return viewFlg;
 
         // 破壊的変更を避けるためコピーを作る
         const taskDate = new Date(t.dueOnDay);
         taskDate.setHours(0, 0, 0, 0);
 
-        if (showUntilToday) {
-            // 今日まで（過去含む）
-            return taskDate.getTime() <= today.getTime();
-        } else {
-            // 今日のみ
-            return taskDate.getTime() === today.getTime();
+        if (showUntilToday
+            && taskDate.getTime() < today.getTime() && t.completedOnDay === null
+        ) {
+            // 今日以前で未完了のタスク(今日まで表示)
+            viewFlg = true;
+
+        } else if (taskDate.getTime() === today.getTime()) {
+            // 今日のタスク
+            viewFlg = true;
         }
+
+        return viewFlg;
+
+
+
     });
 
     return (
