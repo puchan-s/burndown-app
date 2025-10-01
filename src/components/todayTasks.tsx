@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import { useTasks } from "../context/TasksProvider";
 
-export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
+export default function DateTasks({ initTasks }: { initTasks: Task[] }) {
     const { tasks, setTasks } = useTasks();
 
-    // 表示モード: today / untilToday / fromToday
-    const [filterMode, setFilterMode] = useState<"today" | "untilToday" | "fromToday">("today");
+    // 表示モード: exact / until / from
+    const [filterMode, setFilterMode] = useState<"exact" | "until" | "from">("exact");
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 基準日（初期値: 今日）
+    const [selectedDate, setSelectedDate] = useState(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    });
 
     const findTaskById = (tasks: Task[], id: number): Task | undefined => {
         for (const t of tasks) {
@@ -64,6 +68,7 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
 
     const filteredTasks = getViewTasks(initTasks).filter((t) => {
 
+        // 表示フラグ
         let viewFlg = false;
 
         if (!t.dueOnDay) return viewFlg;
@@ -72,25 +77,23 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
         const taskDate = new Date(t.dueOnDay);
         taskDate.setHours(0, 0, 0, 0);
 
-        if (filterMode === "untilToday"
-            && taskDate.getTime() < today.getTime() && t.completedOnDay === null
+        if (filterMode === "until"
+            && taskDate.getTime() < selectedDate.getTime() && t.completedOnDay === null
         ) {
             // 今日以前で未完了のタスク(今日まで表示)
             viewFlg = true;
 
-        } else if (taskDate.getTime() === today.getTime()) {
+        } else if (taskDate.getTime() === selectedDate.getTime()) {
             // 今日のタスク
             viewFlg = true;
-        }else if (filterMode === "fromToday"
-            && taskDate.getTime() > today.getTime() && t.completedOnDay === null
+        }else if (filterMode === "from"
+            && taskDate.getTime() > selectedDate.getTime() && t.completedOnDay === null
         ){
             // 今日以降で未完了のタスク(今日以降表示)
             viewFlg = true;
         }
 
         return viewFlg;
-
-
     });
 
     return (
@@ -100,15 +103,29 @@ export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
                 <div className="bg-yellow-50 rounded-lg p-4 shadow mb-6">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="font-medium">タスク表示</h3>
-                        <select
-                            value={filterMode}
-                            onChange={(e) => setFilterMode(e.target.value as any)}
-                            className="text-xs border rounded px-1 py-0.5"
-                        >
-                            <option value="today">今日のみ</option>
-                            <option value="untilToday">今日まで</option>
-                            <option value="fromToday">今日以降</option>
-                        </select>
+                        <div className="flex items-center space-x-2">
+                            {/* 日付選択 */}
+                            <input
+                                type="date"
+                                value={selectedDate.toISOString().slice(0, 10)}
+                                onChange={(e) => {
+                                    const d = new Date(e.target.value);
+                                    d.setHours(0, 0, 0, 0);
+                                    setSelectedDate(d);
+                                }}
+                                className="text-xs border rounded px-1 py-0.5"
+                            />
+                            {/* フィルターモード */}
+                            <select
+                                value={filterMode}
+                                onChange={(e) => setFilterMode(e.target.value as any)}
+                                className="text-xs border rounded px-1 py-0.5"
+                            >
+                                <option value="exact">指定日</option>
+                                <option value="until">指定日まで</option>
+                                <option value="from">指定日以降</option>
+                            </select>
+                        </div>
                     </div>
 
                     {filteredTasks.length === 0 ? (
