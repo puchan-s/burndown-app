@@ -149,7 +149,7 @@ export default function BurndownApp() {
 
         const childList: Task[] = [];
 
-        for( let child of retTask.children ) {
+        for( const child of retTask.children ) {
           childList.push(initTask(child));
         }
 
@@ -169,7 +169,7 @@ export default function BurndownApp() {
 
       const parsedTasks = [];
 
-      for( let task of JSON.parse(localData) ) {
+      for( const task of JSON.parse(localData) ) {
         parsedTasks.push(initTask(task));
       }
       
@@ -234,7 +234,7 @@ export default function BurndownApp() {
       <div className="flex">
         {/* 左側：今日のタスク */}
         {/* --- 今日のタスクリスト表示（右側に固定、親階層すべて表示） --- */}
-        <TodayTasks tasks={tasks} />
+        <TodayTasks initTasks={tasks} />
 
         {/* 右側：既存のタスク一覧やチャート */}
         <div className="flex-1">

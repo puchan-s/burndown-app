@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTasks } from "../context/TasksProvider";
 
-export default function TodayTasks({ tasks }: { tasks: Task[] }) {
+export default function TodayTasks({ initTasks }: { initTasks: Task[] }) {
     const { tasks, setTasks } = useTasks();
 
     // フラグを追加（trueなら「今日まで」、falseなら「今日のみ」）
@@ -76,7 +76,7 @@ export default function TodayTasks({ tasks }: { tasks: Task[] }) {
         return result;
     };
 
-    const filteredTasks = getViewTasks(tasks).filter((t) => {
+    const filteredTasks = getViewTasks(initTasks).filter((t) => {
         if (!t.dueOnDay) return false;
 
         // 破壊的変更を避けるためコピーを作る
